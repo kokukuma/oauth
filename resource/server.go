@@ -8,8 +8,8 @@ import (
 	"io/ioutil"
 	"log"
 
+	"github.com/kokukuma/oauth/auth"
 	pb "github.com/kokukuma/oauth/resource/pb"
-	"github.com/kokukuma/oauth/server"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"google.golang.org/grpc"
@@ -62,7 +62,7 @@ func NewServer(name, certs string) *grpc.Server {
 			errorUnaryServerInterceptor(),
 
 			// verify token
-			server.VerifyTokenUnaryServerInterceptor(publicKey),
+			auth.VerifyTokenUnaryServerInterceptor(publicKey),
 		),
 	}
 	server := grpc.NewServer(opts...)
