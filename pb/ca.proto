@@ -1,0 +1,14 @@
+syntax = "proto3";
+package pb.ca.v1;
+
+service CA {
+  rpc Certificate(CertificateRequest) returns (CertificateResponse) {}
+}
+
+message CertificateRequest {
+  string csr = 1;
+}
+
+message CertificateResponse {
+  string crt = 1;
+}

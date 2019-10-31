@@ -1,0 +1,14 @@
+syntax = "proto3";
+package pb.resource.v1;
+
+service Resource {
+  rpc UserInfo(UserInfoRequest) returns (UserInfoResponse) {}
+}
+
+message UserInfoRequest {
+}
+
+message UserInfoResponse {
+  string name = 1;
+  string email = 2;
+}

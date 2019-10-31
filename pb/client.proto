@@ -1,0 +1,49 @@
+syntax = "proto3";
+package pb.client.v1;
+
+import "google/api/annotations.proto";
+
+service Client {
+  rpc TopPage(TopPageRequest) returns (TopPageResponse) {
+    option (google.api.http) = {
+        get: "/v1/top"
+    };
+  }
+  rpc Callback(CallbackRequest) returns (CallbackResponse) {
+    option (google.api.http) = {
+        get: "/v1/callback"
+    };
+  }
+  rpc Resource(ResourceRequest) returns (ResourceResponse) {
+    option (google.api.http) = {
+        get: "/v1/resource/{user_id}"
+    };
+  }
+}
+
+message TopPageRequest{
+}
+
+message TopPageResponse {
+  string url = 1;
+}
+
+message CallbackRequest{
+  string code = 1;
+  string state = 2;
+  string user_id = 3;
+}
+
+message CallbackResponse{
+  string url = 1;
+  string user_id = 2;
+}
+
+message ResourceRequest{
+  string user_id = 1;
+}
+
+message ResourceResponse{
+  string name = 1;
+  string email = 2;
+}

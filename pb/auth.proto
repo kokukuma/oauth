@@ -1,0 +1,73 @@
+syntax = "proto3";
+package pb.auth.v1;
+
+import "google/api/annotations.proto";
+
+service Auth {
+  rpc Authorization(AuthorizationRequest) returns (AuthorizationResponse) {
+    option (google.api.http) = {
+        get: "/auth/authorization"
+    };
+  }
+  rpc IssueToken(IssueTokenRequest) returns (IssueTokenResponse) {}
+  rpc VerifyToken(VerifyTokenRequest) returns (VerifyTokenResponse) {}
+  rpc Introspective(IntrospectiveRequest) returns (IntrospectiveResponse) {}
+  rpc Regist(RegistRequest) returns (RegistResponse) {}
+}
+
+message AuthorizationRequest {
+  string response_type = 1;
+  string scope = 2;
+  string client_id = 3;
+  string redirect_uri = 4;
+  string state = 5;
+  bool tls_client_certificate_bound_access_tokens = 6;
+}
+
+message AuthorizationResponse {
+  string code = 1;
+  string state = 2;
+  string user_id = 3;
+  string redirect_uri = 4;
+}
+
+message IssueTokenRequest {
+    string client_id = 1;
+    string grant_type = 2;
+    string code = 3;
+    string redirect_uri = 4;
+}
+
+message IssueTokenResponse {
+  string token = 1;
+}
+
+message VerifyTokenRequest {
+}
+
+message VerifyTokenResponse {
+  bool result = 1;
+}
+
+message IntrospectiveRequest {
+  string token = 1;
+}
+
+message IntrospectiveResponse {
+  bool active = 1;
+  string client_id = 2;
+  string dns_name = 3;
+  string x5t = 4;
+}
+
+message RegistRequest {
+  string name = 1;
+  string tls_client_auth_san_dns = 2;
+  bool tls_client_certificate_bound_access_tokens = 3;
+}
+
+message RegistResponse {
+  string client_id = 1;
+  string name = 2;
+  string tls_client_auth_san_dns = 3;
+}
