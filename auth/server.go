@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	mtoken_grpc "github.com/kokukuma/mtls-token/grpc"
 	pb "github.com/kokukuma/oauth/auth/pb"
+	"github.com/kokukuma/oauth/key"
 	"github.com/morikuni/failure"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -154,11 +155,11 @@ func (s *authImpl) Regist(ctx context.Context, req *pb.RegistRequest) (*pb.Regis
 // New creates new sample server.
 func New(name, certs string) (pb.AuthServer, error) {
 
-	publicKey, err := readRsaPublicKey(fmt.Sprintf("%s/auth.com.crt", certs))
+	publicKey, err := key.ReadRsaPublicKey(fmt.Sprintf("%s/auth.com.crt", certs))
 	if err != nil {
 		return nil, err
 	}
-	privateKey, err := readRsaPrivateKey(fmt.Sprintf("%s/auth.com.key", certs))
+	privateKey, err := key.ReadRsaPrivateKey(fmt.Sprintf("%s/auth.com.key", certs))
 	if err != nil {
 		return nil, err
 	}

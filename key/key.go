@@ -11,7 +11,8 @@ import (
 	"github.com/morikuni/failure"
 )
 
-func readRsaPublicKey(certPath string) (*rsa.PublicKey, error) {
+// ReadRsaPublicKey is used for read public key from file
+func ReadRsaPublicKey(certPath string) (*rsa.PublicKey, error) {
 	bytes, err := ioutil.ReadFile(certPath)
 	if err != nil {
 		return nil, failure.Wrap(err)
@@ -25,7 +26,8 @@ func readRsaPublicKey(certPath string) (*rsa.PublicKey, error) {
 	return cert.PublicKey.(*rsa.PublicKey), nil
 }
 
-func readRsaPrivateKey(pemFile string) (*rsa.PrivateKey, error) {
+// ReadRsaPrivateKey is used for read private key from file
+func ReadRsaPrivateKey(pemFile string) (*rsa.PrivateKey, error) {
 	bytes, err := ioutil.ReadFile(pemFile)
 	if err != nil {
 		return nil, failure.Wrap(err)

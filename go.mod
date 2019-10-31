@@ -11,7 +11,6 @@ require (
 	github.com/morikuni/failure v0.12.0
 	github.com/square/certstrap v1.2.0
 	golang.org/x/net v0.0.0-20191028085509-fe3aa8a45271
-	google.golang.org/genproto v0.0.0-20191028173616-919d9bdd9fe6
+	google.golang.org/genproto v0.0.0-20190819201941-24fa4b261c55
 	google.golang.org/grpc v1.24.0
-	gopkg.in/yaml.v2 v2.2.4 // indirect
 )

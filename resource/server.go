@@ -3,23 +3,16 @@ package resource
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/kokukuma/oauth/auth"
+	"github.com/kokukuma/oauth/key"
 	pb "github.com/kokukuma/oauth/resource/pb"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-)
-
-const (
-	// Domain is resource server's domain
-	Domain = "resource.com"
 )
 
 type resourceImpl struct {
@@ -35,6 +28,28 @@ func (s *resourceImpl) UserInfo(ctx context.Context, req *pb.UserInfoRequest) (*
 	return resp, nil
 }
 
+type serverOpts struct {
+	tlsConfig     *tls.Config
+	authPublicKey string
+}
+
+// ServerOpts is used for setting options
+type ServerOpts func(*serverOpts)
+
+// WithTLSConfig is used for setting customo transportCreds
+func WithTLSConfig(tlsConfig *tls.Config) ServerOpts {
+	return func(o *serverOpts) {
+		o.tlsConfig = tlsConfig
+	}
+}
+
+// WithAuthPublicKey is used for setting authorizatioon public key
+func WithAuthPublicKey(path string) ServerOpts {
+	return func(o *serverOpts) {
+		o.authPublicKey = path
+	}
+}
+
 // New creates new sample server.
 func New(name, certs string) pb.ResourceServer {
 	resourceServer := resourceImpl{
@@ -45,18 +60,18 @@ func New(name, certs string) pb.ResourceServer {
 }
 
 // NewServer creates new grpc server.
-func NewServer(name, certs string) *grpc.Server {
-	tlsConfig, err := getTLSConfig(certs)
-	if err != nil {
-		log.Fatalf("failed to get tlsConfig: %s", err)
+func NewServer(name, certs string, opts ...ServerOpts) *grpc.Server {
+	opt := serverOpts{}
+	for _, o := range opts {
+		o(&opt)
 	}
 
-	publicKey, err := readRsaPublicKey(fmt.Sprintf("%s/auth.com.crt", certs))
+	publicKey, err := key.ReadRsaPublicKey(opt.authPublicKey)
 	if err != nil {
 		log.Fatalf("failed to get publickey: %s", err)
 	}
-	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
+	grpcOpts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(opt.tlsConfig)),
 		grpc_middleware.WithUnaryServerChain(
 			// convert error
 			errorUnaryServerInterceptor(),
@@ -65,39 +80,8 @@ func NewServer(name, certs string) *grpc.Server {
 			auth.VerifyTokenUnaryServerInterceptor(publicKey),
 		),
 	}
-	server := grpc.NewServer(opts...)
+	server := grpc.NewServer(grpcOpts...)
 	pb.RegisterResourceServer(server, New(name, certs))
 	reflection.Register(server)
 	return server
-}
-
-func getTLSConfig(certs string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, Domain),
-		fmt.Sprintf("%s/%s.key", certs, Domain),
-	)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		//ClientAuth: tls.NoClientCert,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    certPool,
-
-		// Resource server don't need to client authentication.
-		// VerifyPeerCertificate: verifySANDNS,
-	}
-	return tlsConfig, nil
 }
