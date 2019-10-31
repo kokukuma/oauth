@@ -7,7 +7,6 @@ import (
 	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/google/uuid"
@@ -20,11 +19,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-)
-
-const (
-	// Domain is resource server's domain
-	Domain = "server.com"
 )
 
 var (
@@ -153,13 +147,12 @@ func (s *authImpl) Regist(ctx context.Context, req *pb.RegistRequest) (*pb.Regis
 }
 
 // New creates new sample server.
-func New(name, certs string) (pb.AuthServer, error) {
-
-	publicKey, err := key.ReadRsaPublicKey(fmt.Sprintf("%s/auth.com.crt", certs))
+func New(name, pub, priv string) (pb.AuthServer, error) {
+	publicKey, err := key.ReadRsaPublicKey(pub)
 	if err != nil {
 		return nil, err
 	}
-	privateKey, err := key.ReadRsaPrivateKey(fmt.Sprintf("%s/auth.com.key", certs))
+	privateKey, err := key.ReadRsaPrivateKey(priv)
 	if err != nil {
 		return nil, err
 	}
@@ -172,14 +165,17 @@ func New(name, certs string) (pb.AuthServer, error) {
 	return &authServer, nil
 }
 
+// Config represents auth server configuration
+type Config struct {
+	TLSConfig  *tls.Config
+	PublicKey  string
+	PrivateKey string
+}
+
 // NewServer creates new grpc server.
-func NewServer(name, certs string) (*grpc.Server, error) {
-	tlsConfig, err := getTLSConfig(certs)
-	if err != nil {
-		return nil, err
-	}
+func NewServer(name, certs string, config Config) (*grpc.Server, error) {
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.Creds(credentials.NewTLS(config.TLSConfig)),
 		grpc_middleware.WithUnaryServerChain(
 			// authentication of authz server
 			clientAuthUnaryServerInterceptor(),
@@ -189,7 +185,7 @@ func NewServer(name, certs string) (*grpc.Server, error) {
 		),
 	}
 	server := grpc.NewServer(opts...)
-	s, err := New(name, certs)
+	s, err := New(name, config.PublicKey, config.PrivateKey)
 	if err != nil {
 		return nil, err
 	}
@@ -198,38 +194,7 @@ func NewServer(name, certs string) (*grpc.Server, error) {
 	return server, nil
 }
 
-func getTLSConfig(certs string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, Domain),
-		fmt.Sprintf("%s/%s.key", certs, Domain),
-	)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		//ClientAuth: tls.NoClientCert,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    certPool,
-
-		// Unknown client cannot create tls connection.
-		// This method could not controle the restriction by gRPC method.
-		// VerifyPeerCertificate: verifySANDNS,
-	}
-	return tlsConfig, nil
-}
-
+// verifySANDNS is used for client authentication on TLS level.
 func verifySANDNS(rawCerts [][]byte, _ [][]*x509.Certificate) error {
 	certs := make([]*x509.Certificate, len(rawCerts))
 	for i, asn1Data := range rawCerts {
