@@ -2,12 +2,6 @@ package ca
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"fmt"
-	"io/ioutil"
-	"log"
 
 	pb "github.com/kokukuma/oauth/ca/pb"
 	"github.com/square/certstrap/pkix"
@@ -60,17 +54,22 @@ func (c *Client) Certificate(ctx context.Context) (*caInfo, error) {
 	}, nil
 }
 
-// NewClient creates grpc client for CA server.
-func NewClient(addr, certs string) (*Client, error) {
+// Config represents ca client config
+type Config struct {
+	TransportCreds credentials.TransportCredentials
+}
 
-	transportCreds, err := getTransportCreds(certs, "server.com")
-	if err != nil {
-		log.Fatalf("failed to get transportCreds: %s", err)
-	}
+// NewClient creates grpc client for CA server.
+func NewClient(addr string, config Config) (*Client, error) {
+
+	// transportCreds, err := getTransportCreds(certs, "server.com")
+	// if err != nil {
+	// 	log.Fatalf("failed to get transportCreds: %s", err)
+	// }
 
 	dialOpts := []grpc.DialOption{
 		//grpc.WithInsecure(),
-		grpc.WithTransportCredentials(transportCreds),
+		grpc.WithTransportCredentials(config.TransportCreds),
 	}
 	conn, err := grpc.Dial(addr, dialOpts...)
 	if err != nil {
@@ -83,23 +82,4 @@ func NewClient(addr, certs string) (*Client, error) {
 	}
 
 	return c, nil
-}
-
-func getTransportCreds(certs, serverName string) (credentials.TransportCredentials, error) {
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, errors.New("failed to append cert to pool")
-	}
-
-	transportCreds := credentials.NewTLS(&tls.Config{
-		ServerName: serverName,
-		RootCAs:    certPool,
-	})
-	return transportCreds, nil
 }

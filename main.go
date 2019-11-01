@@ -2,12 +2,18 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"errors"
 	"flag"
+	"fmt"
+	"io/ioutil"
 	"log"
-	"net"
 
 	mtoken_grpc "github.com/kokukuma/mtls-token/grpc"
-	"github.com/kokukuma/oauth/client"
+	"github.com/kokukuma/oauth/auth"
+	"github.com/kokukuma/oauth/resource"
+	"google.golang.org/grpc/credentials"
 )
 
 const (
@@ -32,13 +38,13 @@ func main() {
 
 func doCclient2(token string) {
 	ctx := context.Background()
-	cli, err := grpcClient(ctx, "service2", *certs)
+	authCli, err := grpcAuthClient(ctx, "service2", *certs)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// token introspection
-	res, err := cli.Introspection(ctx, token)
+	res, err := authCli.Introspection(ctx, token)
 	log.Println("----- introspection via wrong client")
 	log.Printf("active: %v", res.GetActive())
 	log.Printf("clientID: %s", res.GetClientId())
@@ -48,7 +54,11 @@ func doCclient2(token string) {
 	// Verify token
 	ctx = mtoken_grpc.AddTokenToContext(ctx, token)
 	log.Println("----- userinfo via wrong client")
-	userInfo, err := cli.UserInfo(ctx)
+	resCli, err := grpcResClient(ctx, "service2", *certs)
+	if err != nil {
+		log.Fatal(err)
+	}
+	userInfo, err := resCli.UserInfo(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -57,26 +67,27 @@ func doCclient2(token string) {
 
 func doCclient1() string {
 	ctx := context.Background()
-	cli, err := grpcClient(ctx, "service1", *certs)
+	authCli, err := grpcAuthClient(ctx, "service1", *certs)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// Registration
-	clientID, err := cli.Regist(ctx, "service1", "kokukuma.service1.com")
+	clientID, err := authCli.Regist(ctx, "service1", "kokukuma.service1.com")
 	if err != nil {
 		log.Fatal(err)
 	}
 	log.Println("clientID: ", clientID)
 
 	// Issue token
-	token, err := cli.IssueToken(ctx)
+	// TODO: 何故空を渡しているの...
+	token, err := authCli.IssueToken(ctx, "", "", "")
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	// token introspection
-	res, err := cli.Introspection(ctx, token)
+	res, err := authCli.Introspection(ctx, token)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -87,9 +98,14 @@ func doCclient1() string {
 	log.Printf("X5T: %s", res.GetDnsName())
 
 	// Verify token
+	resCli, err := grpcResClient(ctx, "service1", *certs)
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	ctx = mtoken_grpc.AddTokenToContext(ctx, token)
 	log.Println("----- userinfo from resource server")
-	userInfo, err := cli.UserInfo(ctx)
+	userInfo, err := resCli.UserInfo(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -98,24 +114,72 @@ func doCclient1() string {
 	return token
 }
 
-func clientServer(name, certs string) {
-	listenPort, err := net.Listen("tcp", cliAddr)
+func grpcAuthClient(ctx context.Context, name, certs string) (*auth.Client, error) {
+	ac, err := getTransportCreds(name, certs, "server.com")
 	if err != nil {
 		log.Fatalln(err)
 	}
-
-	log.Print("Start grpc client server: " + cliAddr)
-	s := client.NewServer(name, certs)
-	s.Serve(listenPort)
-}
-
-func grpcClient(ctx context.Context, name, certs string) (*client.Client, error) {
-	sc, err := client.NewClient(authAddr, resAddr, name, certs)
+	acli, err := auth.NewClient(authAddr, name, auth.ClientConfig{
+		TransportCreds: ac,
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	log.Print("Exec grpc client with Authorization header")
 
-	return sc, nil
+	return acli, nil
+}
+
+func grpcResClient(ctx context.Context, name, certs string) (*resource.Client, error) {
+	rc, err := getTransportCreds(name, certs, "resource.com")
+	if err != nil {
+		log.Fatalln(err)
+	}
+	rcli, err := resource.NewClient(resAddr, name, resource.ClientConfig{
+		TransportCreds: rc,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	log.Print("Exec grpc client with Authorization header")
+
+	return rcli, nil
+}
+
+func getTransportCreds(name, certs, serverName string) (credentials.TransportCredentials, error) {
+	certificate, err := tls.LoadX509KeyPair(
+		fmt.Sprintf("%s/%s.crt", certs, name),
+		fmt.Sprintf("%s/%s.key", certs, name),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	certPool, err := getPool(certs)
+	if err != nil {
+		return nil, err
+	}
+
+	transportCreds := credentials.NewTLS(&tls.Config{
+		ServerName:   serverName,
+		Certificates: []tls.Certificate{certificate},
+		RootCAs:      certPool,
+	})
+	return transportCreds, nil
+}
+
+func getPool(certs string) (*x509.CertPool, error) {
+	certPool := x509.NewCertPool()
+	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
+	if err != nil {
+		return nil, err
+	}
+	ok := certPool.AppendCertsFromPEM(bs)
+	if !ok {
+		return nil, errors.New("failed to append cert to pool")
+	}
+
+	return certPool, nil
 }

@@ -3,15 +3,15 @@ package client
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/url"
 
 	mtoken_grpc "github.com/kokukuma/mtls-token/grpc"
+	"github.com/kokukuma/oauth/auth"
 	pb "github.com/kokukuma/oauth/client/pb"
+	"github.com/kokukuma/oauth/resource"
 	"github.com/morikuni/failure"
 
 	"google.golang.org/grpc"
@@ -20,9 +20,6 @@ import (
 )
 
 const (
-	// Domain is resource server's domain
-	Domain = "service1"
-
 	// AuthorizationURL is the endpoint of authorization.
 	AuthorizationURL = "http://localhost:8080/auth/authorization"
 )
@@ -33,9 +30,9 @@ var (
 )
 
 type clientImpl struct {
-	name   string
-	certs  string
-	client *Client
+	name     string
+	auth     *auth.Client
+	resource *resource.Client
 }
 
 func (s *clientImpl) TopPage(ctx context.Context, req *pb.TopPageRequest) (*pb.TopPageResponse, error) {
@@ -65,10 +62,10 @@ func (s *clientImpl) Callback(ctx context.Context, req *pb.CallbackRequest) (*pb
 	}
 	states.delete(state)
 
-	token, err := s.client.IssueToken(ctx,
-		WithGrantType("authorization_code"),
-		WithCode(req.GetCode()),
-		WithRedirectURI("http://localhost:8080/v1/callback"),
+	token, err := s.auth.IssueToken(ctx,
+		"authorization_code",
+		req.GetCode(),
+		"http://localhost:8080/v1/callback",
 	)
 	if err != nil {
 		return nil, failure.Wrap(err)
@@ -90,7 +87,7 @@ func (s *clientImpl) Resource(ctx context.Context, req *pb.ResourceRequest) (*pb
 	}
 
 	ctx = mtoken_grpc.AddTokenToContext(ctx, token)
-	userInfo, err := s.client.UserInfo(ctx)
+	userInfo, err := s.resource.UserInfo(ctx)
 	if err != nil {
 		return nil, failure.Wrap(err)
 	}
@@ -102,61 +99,44 @@ func (s *clientImpl) Resource(ctx context.Context, req *pb.ResourceRequest) (*pb
 }
 
 // New creates new sample server.
-func New(name, certs string) pb.ClientServer {
-	client, err := NewClient(":10000", ":10001", name, certs)
+func New(name string, config Config) pb.ClientServer {
+	auth, err := auth.NewClient(config.AuthAddr, name, auth.ClientConfig{
+		TransportCreds: config.AuthTransportCreds,
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
+	resource, err := resource.NewClient(config.ResAddr, name, resource.ClientConfig{
+		TransportCreds: config.ResourceTransportCreds,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	clientServer := clientImpl{
-		name:   name,
-		certs:  certs,
-		client: client,
+		name:     name,
+		auth:     auth,
+		resource: resource,
 	}
 	return &clientServer
 }
 
-// NewServer creates new grpc server.
-func NewServer(name, certs string) *grpc.Server {
-	tlsConfig, err := getTLSConfig(certs)
-	if err != nil {
-		log.Fatalf("failed to get tlsConfig: %s", err)
-	}
-	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
-	}
-	server := grpc.NewServer(opts...)
-	pb.RegisterClientServer(server, New(name, certs))
-	reflection.Register(server)
-	return server
+// Config represents client configuration
+type Config struct {
+	TLSConfig              *tls.Config
+	AuthAddr               string
+	ResAddr                string
+	AuthTransportCreds     credentials.TransportCredentials
+	ResourceTransportCreds credentials.TransportCredentials
 }
 
-func getTLSConfig(certs string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, Domain),
-		fmt.Sprintf("%s/%s.key", certs, Domain),
-	)
-	if err != nil {
-		return nil, err
+// NewServer creates new grpc server.
+func NewServer(name string, config Config) *grpc.Server {
+	opts := []grpc.ServerOption{
+		grpc.Creds(credentials.NewTLS(config.TLSConfig)),
 	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		//ClientAuth: tls.NoClientCert,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    certPool,
-
-		// Unknown client cannot create tls connection.
-		//VerifyPeerCertificate: verifySANDNS,
-	}
-	return tlsConfig, nil
+	server := grpc.NewServer(opts...)
+	pb.RegisterClientServer(server, New(name, config))
+	reflection.Register(server)
+	return server
 }

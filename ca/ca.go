@@ -3,9 +3,6 @@ package ca
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
-	"fmt"
-	"io/ioutil"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 
@@ -13,11 +10,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-)
-
-const (
-	// Domain is resource server's domain
-	Domain = "server.com"
 )
 
 type caImpl struct {
@@ -45,10 +37,10 @@ func (s *caImpl) Certificate(ctx context.Context, req *pb.CertificateRequest) (*
 }
 
 // New creates new sample server.
-func New(name, certs string) (pb.CAServer, error) {
+func New(name string, config ServerConfig) (pb.CAServer, error) {
 	ca, err := newCAInfo(
-		fmt.Sprintf("%s/My_Root_CA.key", certs),
-		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+		config.PrivateKey,
+		config.Certificate,
 	)
 	if err != nil {
 		return nil, err
@@ -60,52 +52,28 @@ func New(name, certs string) (pb.CAServer, error) {
 	return &caServer, nil
 }
 
+// ServerConfig represents server config
+type ServerConfig struct {
+	TLSConfig   *tls.Config
+	PrivateKey  string
+	Certificate string
+}
+
 // NewServer creates new grpc server.
-func NewServer(name, certs string) (*grpc.Server, error) {
-	tlsConfig, err := getTLSConfig(certs)
-	if err != nil {
-		return nil, err
-	}
+func NewServer(name string, config ServerConfig) (*grpc.Server, error) {
 	opts := []grpc.ServerOption{
-		grpc.Creds(credentials.NewTLS(tlsConfig)),
+		grpc.Creds(credentials.NewTLS(config.TLSConfig)),
 		grpc_middleware.WithUnaryServerChain(
 		// // convert error
 		// errorUnaryServerInterceptor(),
 		),
 	}
 	server := grpc.NewServer(opts...)
-	s, err := New(name, certs)
+	s, err := New(name, config)
 	if err != nil {
 		return nil, err
 	}
 	pb.RegisterCAServer(server, s)
 	reflection.Register(server)
 	return server, nil
-}
-
-func getTLSConfig(certs string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, Domain),
-		fmt.Sprintf("%s/%s.key", certs, Domain),
-	)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		ClientAuth:   tls.NoClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    certPool,
-	}
-	return tlsConfig, nil
 }
