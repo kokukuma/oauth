@@ -1,21 +1,18 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 
 	"github.com/kokukuma/oauth/ca"
+	"github.com/kokukuma/oauth/tls"
 )
 
 const (
 	caAddr = ":10005"
-	// Domain is resource server's domain
-	Domain = "server.com"
+	domain = "server.com"
 )
 
 var (
@@ -34,7 +31,7 @@ func newCAServer(name, certs string) {
 	}
 
 	log.Print("Start grpc auth server: " + caAddr)
-	tlsConfig, err := getTLSConfig(certs)
+	tlsConfig, err := tls.GetTLSConfig(certs, domain)
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}
@@ -47,31 +44,4 @@ func newCAServer(name, certs string) {
 		log.Fatalln(err)
 	}
 	s.Serve(listenPort)
-}
-
-func getTLSConfig(certs string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, Domain),
-		fmt.Sprintf("%s/%s.key", certs, Domain),
-	)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, err
-	}
-
-	tlsConfig := &tls.Config{
-		ClientAuth:   tls.NoClientCert,
-		Certificates: []tls.Certificate{certificate},
-		ClientCAs:    certPool,
-	}
-	return tlsConfig, nil
 }

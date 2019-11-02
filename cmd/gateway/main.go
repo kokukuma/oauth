@@ -1,17 +1,12 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
 	"flag"
-	"fmt"
-	"io/ioutil"
 	"log"
 
 	"github.com/kokukuma/oauth/gateway"
+	"github.com/kokukuma/oauth/tls"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 var (
@@ -46,7 +41,7 @@ func main() {
 }
 
 func getCliGrpcOpts(certs string) ([]grpc.DialOption, error) {
-	transportCreds, err := getTransportCreds("service1", certs, "kokukuma.service1.com")
+	transportCreds, err := tls.GetTransportCreds("service1", certs, "kokukuma.service1.com")
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}
@@ -58,7 +53,7 @@ func getCliGrpcOpts(certs string) ([]grpc.DialOption, error) {
 }
 
 func getAuthGrpcOpts(certs string) ([]grpc.DialOption, error) {
-	transportCreds, err := getTransportCreds("service1", certs, "server.com")
+	transportCreds, err := tls.GetTransportCreds("service1", certs, "server.com")
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}
@@ -67,32 +62,4 @@ func getAuthGrpcOpts(certs string) ([]grpc.DialOption, error) {
 		grpc.WithTransportCredentials(transportCreds),
 	}
 	return opts, nil
-}
-
-func getTransportCreds(name, certs, serverName string) (credentials.TransportCredentials, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, name),
-		fmt.Sprintf("%s/%s.key", certs, name),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
-	if err != nil {
-		return nil, err
-	}
-
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
-		return nil, errors.New("failed to append cert to pool")
-	}
-
-	transportCreds := credentials.NewTLS(&tls.Config{
-		ServerName:   serverName,
-		Certificates: []tls.Certificate{certificate},
-		RootCAs:      certPool,
-	})
-	return transportCreds, nil
 }
