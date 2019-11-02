@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 
 	"github.com/kokukuma/oauth/gateway"
@@ -41,7 +42,12 @@ func main() {
 }
 
 func getCliGrpcOpts(certs string) ([]grpc.DialOption, error) {
-	transportCreds, err := tls.GetTransportCreds("service1", certs, "kokukuma.service1.com")
+	transportCreds, err := tls.GetTransportCreds(
+		fmt.Sprintf("%s/%s.crt", certs, "service1"),
+		fmt.Sprintf("%s/%s.key", certs, "service1"),
+		"kokukuma.service1.com",
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}
@@ -53,7 +59,12 @@ func getCliGrpcOpts(certs string) ([]grpc.DialOption, error) {
 }
 
 func getAuthGrpcOpts(certs string) ([]grpc.DialOption, error) {
-	transportCreds, err := tls.GetTransportCreds("service1", certs, "server.com")
+	transportCreds, err := tls.GetTransportCreds(
+		fmt.Sprintf("%s/%s.crt", certs, "service1"),
+		fmt.Sprintf("%s/%s.key", certs, "service1"),
+		"server.com",
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}

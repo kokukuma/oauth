@@ -4,28 +4,20 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"fmt"
 	"io/ioutil"
 
 	"google.golang.org/grpc/credentials"
 )
 
-func GetTLSConfig(certs, domain string) (*tls.Config, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, domain),
-		fmt.Sprintf("%s/%s.key", certs, domain),
-	)
-	if err != nil {
-		return nil, err
-	}
-	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
+// GetTLSConfig return tls config
+func GetTLSConfig(crtpath, pubpath, rootcrt string) (*tls.Config, error) {
+	certificate, err := tls.LoadX509KeyPair(crtpath, pubpath)
 	if err != nil {
 		return nil, err
 	}
 
-	ok := certPool.AppendCertsFromPEM(bs)
-	if !ok {
+	certPool, err := getPool(rootcrt)
+	if err != nil {
 		return nil, err
 	}
 
@@ -41,31 +33,9 @@ func GetTLSConfig(certs, domain string) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func GetTransportCreds(name, certs, serverName string) (credentials.TransportCredentials, error) {
-	certificate, err := tls.LoadX509KeyPair(
-		fmt.Sprintf("%s/%s.crt", certs, name),
-		fmt.Sprintf("%s/%s.key", certs, name),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	certPool, err := getPool(certs)
-	if err != nil {
-		return nil, err
-	}
-
-	transportCreds := credentials.NewTLS(&tls.Config{
-		ServerName:   serverName,
-		Certificates: []tls.Certificate{certificate},
-		RootCAs:      certPool,
-	})
-	return transportCreds, nil
-}
-
-func getPool(certs string) (*x509.CertPool, error) {
+func getPool(rootcrt string) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
-	bs, err := ioutil.ReadFile(fmt.Sprintf("%s/My_Root_CA.crt", certs))
+	bs, err := ioutil.ReadFile(rootcrt)
 	if err != nil {
 		return nil, err
 	}
@@ -75,4 +45,14 @@ func getPool(certs string) (*x509.CertPool, error) {
 	}
 
 	return certPool, nil
+}
+
+// GetTransportCreds return transport credential
+func GetTransportCreds(crtpath, pubpath, serverName, rootcrt string) (credentials.TransportCredentials, error) {
+	tlsConfig, err := GetTLSConfig(crtpath, pubpath, rootcrt)
+	if err != nil {
+		return nil, err
+	}
+	tlsConfig.ServerName = serverName
+	return credentials.NewTLS(tlsConfig), nil
 }

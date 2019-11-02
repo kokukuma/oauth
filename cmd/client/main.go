@@ -3,6 +3,7 @@ package main
 import (
 	// "crypto/tls"
 	"flag"
+	"fmt"
 	"log"
 	"net"
 
@@ -34,15 +35,29 @@ func clientServer(name, certs string) {
 	}
 
 	log.Print("Start grpc client server: " + cliAddr)
-	tlsconfig, err := tls.GetTLSConfig(certs, domain)
+	tlsconfig, err := tls.GetTLSConfig(
+		fmt.Sprintf("%s/%s.crt", certs, domain),
+		fmt.Sprintf("%s/%s.key", certs, domain),
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	ac, err := tls.GetTransportCreds(name, certs, "server.com")
+	ac, err := tls.GetTransportCreds(
+		fmt.Sprintf("%s/%s.crt", certs, name),
+		fmt.Sprintf("%s/%s.key", certs, name),
+		"server.com",
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	rc, err := tls.GetTransportCreds(name, certs, "resource.com")
+	rc, err := tls.GetTransportCreds(
+		fmt.Sprintf("%s/%s.crt", certs, name),
+		fmt.Sprintf("%s/%s.key", certs, name),
+		"resource.com",
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalln(err)
 	}

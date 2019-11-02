@@ -32,7 +32,11 @@ func authServer(name, certs string) {
 
 	log.Print("Start grpc auth server: " + authAddr)
 
-	tlsConfig, err := tls.GetTLSConfig(certs, domain)
+	tlsConfig, err := tls.GetTLSConfig(
+		fmt.Sprintf("%s/%s.crt", certs, domain),
+		fmt.Sprintf("%s/%s.key", certs, domain),
+		fmt.Sprintf("%s/My_Root_CA.crt", certs),
+	)
 	if err != nil {
 		log.Fatalln(err)
 	}
