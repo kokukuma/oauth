@@ -1,13 +1,14 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 
 	"github.com/kokukuma/oauth/ca"
-	"github.com/kokukuma/oauth/tls"
+	oauth_tls "github.com/kokukuma/oauth/tls"
 )
 
 const (
@@ -31,7 +32,7 @@ func newCAServer(name, certs string) {
 	}
 
 	log.Print("Start grpc auth server: " + caAddr)
-	tlsConfig, err := tls.GetTLSConfig(
+	tlsConfig, err := oauth_tls.GetTLSConfig(
 		fmt.Sprintf("%s/%s.crt", certs, domain),
 		fmt.Sprintf("%s/%s.key", certs, domain),
 		fmt.Sprintf("%s/My_Root_CA.crt", certs),
@@ -39,6 +40,7 @@ func newCAServer(name, certs string) {
 	if err != nil {
 		log.Fatalf("failed to get transportCreds: %s", err)
 	}
+	tlsConfig.ClientAuth = tls.NoClientCert
 	s, err := ca.NewServer("ca server", ca.ServerConfig{
 		TLSConfig:   tlsConfig,
 		PrivateKey:  fmt.Sprintf("%s/My_Root_CA.key", certs),

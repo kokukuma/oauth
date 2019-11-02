@@ -9,6 +9,7 @@ go run cmd/gateway/main.go &
 go run cmd/ca/main.go &
 
 sleep 1
-go run . |:
+go run example/caflow/main.go
+go run example/token/main.go |:
 
 wait

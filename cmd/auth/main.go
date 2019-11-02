@@ -7,7 +7,7 @@ import (
 	"net"
 
 	"github.com/kokukuma/oauth/auth"
-	"github.com/kokukuma/oauth/tls"
+	oauth_tls "github.com/kokukuma/oauth/tls"
 )
 
 const (
@@ -32,7 +32,7 @@ func authServer(name, certs string) {
 
 	log.Print("Start grpc auth server: " + authAddr)
 
-	tlsConfig, err := tls.GetTLSConfig(
+	tlsConfig, err := oauth_tls.GetTLSConfig(
 		fmt.Sprintf("%s/%s.crt", certs, domain),
 		fmt.Sprintf("%s/%s.key", certs, domain),
 		fmt.Sprintf("%s/My_Root_CA.crt", certs),
@@ -40,7 +40,7 @@ func authServer(name, certs string) {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	s, err := auth.NewServer(name, certs, auth.Config{
+	s, err := auth.NewServer(name, auth.Config{
 		TLSConfig:  tlsConfig,
 		PublicKey:  fmt.Sprintf("%s/auth.com.crt", certs),
 		PrivateKey: fmt.Sprintf("%s/auth.com.key", certs),

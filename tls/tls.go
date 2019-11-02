@@ -16,13 +16,13 @@ func GetTLSConfig(crtpath, pubpath, rootcrt string) (*tls.Config, error) {
 		return nil, err
 	}
 
-	certPool, err := getPool(rootcrt)
+	certPool, err := GetPool(rootcrt)
 	if err != nil {
 		return nil, err
 	}
 
 	tlsConfig := &tls.Config{
-		//ClientAuth: tls.NoClientCert,
+		// ClientAuth: tls.NoClientCert,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		Certificates: []tls.Certificate{certificate},
 		ClientCAs:    certPool,
@@ -33,7 +33,8 @@ func GetTLSConfig(crtpath, pubpath, rootcrt string) (*tls.Config, error) {
 	return tlsConfig, nil
 }
 
-func getPool(rootcrt string) (*x509.CertPool, error) {
+// GetPool return pool
+func GetPool(rootcrt string) (*x509.CertPool, error) {
 	certPool := x509.NewCertPool()
 	bs, err := ioutil.ReadFile(rootcrt)
 	if err != nil {

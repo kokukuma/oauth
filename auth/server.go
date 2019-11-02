@@ -173,7 +173,7 @@ type Config struct {
 }
 
 // NewServer creates new grpc server.
-func NewServer(name, certs string, config Config) (*grpc.Server, error) {
+func NewServer(name string, config Config) (*grpc.Server, error) {
 	opts := []grpc.ServerOption{
 		grpc.Creds(credentials.NewTLS(config.TLSConfig)),
 		grpc_middleware.WithUnaryServerChain(
