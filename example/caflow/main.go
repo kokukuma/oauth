@@ -47,8 +47,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(caInfo)
-	fmt.Println("---------")
 
 	// 取得したcertを使って、DialOptionつける
 	crt, err := caInfo.TLSCertificate()
@@ -59,6 +57,13 @@ func main() {
 	// TODO: oauth_tls.GetTransportCredsだと通らなかった
 	// 以下のエラーが出る. 原因をちゃんと理解できていない.
 	// 2019/11/02 17:33:18 failed to regist clientrpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = "transport: authentication handshake failed: x509: certificate signed by unknown authority"
+	// ac, err := oauth_tls.GetTransportCreds(
+	// 	fmt.Sprintf("%s/%s.crt", *certs, "service1"),
+	// 	fmt.Sprintf("%s/%s.key", *certs, "service1"),
+	// 	"server.com", fmt.Sprintf("%s/My_Root_CA.crt", *certs))
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
 
 	// register client
 	// certificate, _ := tls.LoadX509KeyPair(
@@ -66,7 +71,7 @@ func main() {
 	// 	fmt.Sprintf("%s/%s.key", *certs, "service1"),
 	// )
 	authCli, err := auth.NewClient(":10000", "service1", auth.ClientConfig{
-		// TransportCreds: ac,
+		//TransportCreds: ac,
 		TransportCreds: credentials.NewTLS(&tls.Config{
 			ServerName:   "server.com",
 			RootCAs:      pool,
